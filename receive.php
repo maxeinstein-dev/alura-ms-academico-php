@@ -18,14 +18,18 @@ $channel->queue_declare($queue, durable: true, auto_delete: false);
 $channel->queue_bind($queue, 'client_enrolled');
 $channel->basic_consume($queue, no_ack: true, callback: function (AMQPMessage $msg) {
     $properties = json_decode($msg->body, true);
+    $token = bin2hex(random_bytes(32));
+
     $student = R::dispense('students');
     $student->name = $properties['name'];
     $student->email = $properties['email'];
-    $student->password = password_hash('123456', PASSWORD_ARGON2ID);
+    $student->password = password_hash(bin2hex(random_bytes(32)), PASSWORD_ARGON2ID);
+    $student->password_reset_token = hash('sha256', $token);
+    $student->password_reset_expires_at = (new DateTimeImmutable('+24 hours'))->format('Y-m-d H:i:s');
     R::store($student);
 
     try {
-        sendMailTo($student);
+        sendMailTo($student, $token);
         echo 'E-mail enviado' . PHP_EOL;
     } catch (\Throwable $exception) {
         echo 'Falha ao enviar e-mail para ' . $student->email . ': ' . $exception->getMessage() . PHP_EOL;
