@@ -14,7 +14,7 @@ $channel = $connection->channel();
 
 $queue = 'student_enrollment';
 $channel->exchange_declare('client_enrolled', 'fanout', durable: true, auto_delete: false);
-$channel->queue_declare($queue, auto_delete: false);
+$channel->queue_declare($queue, durable: true, auto_delete: false);
 $channel->queue_bind($queue, 'client_enrolled');
 $channel->basic_consume($queue, no_ack: true, callback: function (AMQPMessage $msg) {
     $properties = json_decode($msg->body, true);
@@ -24,8 +24,12 @@ $channel->basic_consume($queue, no_ack: true, callback: function (AMQPMessage $m
     $student->password = password_hash('123456', PASSWORD_ARGON2ID);
     R::store($student);
 
-    sendMailTo($student);
-    echo 'E-mail enviado' . PHP_EOL;
+    try {
+        sendMailTo($student);
+        echo 'E-mail enviado' . PHP_EOL;
+    } catch (\Throwable $exception) {
+        echo 'Falha ao enviar e-mail para ' . $student->email . ': ' . $exception->getMessage() . PHP_EOL;
+    }
 });
 
 while ($channel->is_open()) {
